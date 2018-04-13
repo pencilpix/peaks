@@ -4,6 +4,8 @@
   "description": "nodejs server that accept posting a url of audio file and respond with it's peaks.",
   "main": "Server.js",
   "scripts": {
+    "start": "node Server.js",
+    "dev": "nodemon Server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -20,5 +22,17 @@
   "bugs": {
     "url": "https://gitlab.com/pencilpix/peaks-server/issues"
   },
-  "homepage": "https://gitlab.com/pencilpix/peaks-server#README"
+  "homepage": "https://gitlab.com/pencilpix/peaks-server#README",
+  "dependencies": {
+    "axios": "^0.18.0",
+    "body-parser": "^1.18.2",
+    "express": "^4.16.3",
+    "ffmpeg-static": "^2.2.1",
+    "save-file": "^1.2.0",
+    "tmp": "^0.0.33",
+    "waveform-node": "^0.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^1.17.3"
+  }
 }
