@@ -1,0 +1,24 @@
+{
+  "name": "@pencilpix/peaks",
+  "version": "0.0.1",
+  "description": "nodejs server that accept posting a url of audio file and respond with it's peaks.",
+  "main": "Server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@gitlab.com/pencilpix/peaks-server.git"
+  },
+  "keywords": [
+    "peaks",
+    "waveform",
+    "nodejs"
+  ],
+  "author": "Mohamed Hassan <pencilpix11@gmail.com> (http://mohamedhassan.me)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://gitlab.com/pencilpix/peaks-server/issues"
+  },
+  "homepage": "https://gitlab.com/pencilpix/peaks-server#README"
+}
