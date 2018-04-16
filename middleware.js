@@ -32,7 +32,7 @@ const isValid = url => urlPattern.test(url)
  * @param {Array<String>} urls
  * @returns {Boolean}
  */
-const isValidList = urls => urls.reduce((cur, next) => cur && isValid(url), true)
+const isValidList = urls => urls.reduce((cur, next) => cur && isValid(next), true)
 
 
 /**
