@@ -16,6 +16,12 @@ const DEFAULTS = {
 
 const $http = axios.create({
   responseType: 'arraybuffer',
+  timeout: 20000,
+  onDownloadProgress: function (progressEvent) {
+    // Do whatever you want with the native progress event
+    console.log('downloading');
+    console.log(progressEvent);
+  },
 })
 
 
@@ -24,7 +30,7 @@ const $http = axios.create({
  * @param {String} url
  * @returns {Boolean}
  */
-const isValid = url => urlPattern.test(url)
+const isValid = url => urlPattern.test(url) || /localhost/.test(url)
 
 
 /**
@@ -103,7 +109,7 @@ const getPeaks = (track, options) => {
 const getPeaksList = (res, tracks, options) => {
   const _options = Object.assign({}, DEFAULTS, clearOptions(options))
 
-  Promise.all(tracks.map((track) => getPeaks(track, options)))
+  return Promise.all(tracks.map((track) => getPeaks(track, options)))
     .then((list) => res.status(200).json(list.length === 1 ? list[0] : list))
     .catch((err) => res.status(err && err.code).json(err))
 }
@@ -119,6 +125,7 @@ module.exports = function peaksMiddleware(req, res, next) {
   numOfSample = numOfSample || req.query.numOfSample
   waveformType = typeof waveformType !== 'undefined' ? waveformType : req.query.waveformType
   samplesPerSecond = samplesPerSecond || req.query.samplesPerSecond
+
 
   if (Array.isArray(track) && isValidList(track)) {
     getPeaksList(res, track, { numOfSample, waveformType, samplesPerSecond });
