@@ -15,7 +15,7 @@ clone or download this repo
 5. now you can make get request as follow
 
 ```js
-const url = 'http://localhost:2500/peaks'track=
+const url = 'http://localhost:2500/peaks'
 const waveformOptions = {
 
 }
