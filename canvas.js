@@ -80,11 +80,11 @@ module.exports = class Canvas {
 
   prepareDraw(channelIndex, start, end, fn = () => {}) {
     const { height, peaks } = this
-    const absmax = 1
+    //const absmax = 1
     const hasMinValue = peaks.some(p => p < 0)
     // should be used if we need to normalize
-    // const [min, max, hasMinValue] = $getMaxMin(peaks)
-    // const absmax = -min > max ? -min : max // normalized max.
+    const { min, max } = this.getMaxMin(peaks)
+    const absmax = -min > max ? -min : max // normalized max.
     const offsetY = 0
     const halfH = height / 2
 
@@ -115,6 +115,18 @@ module.exports = class Canvas {
   fill(x, y, width, height, clr) {
     this.ctx.fillStyle = clr
     this.ctx.fillRect(x, y, width, height)
+  }
+
+  getMaxMin(peaks) {
+    let min = 0
+    let max = 0
+
+    peaks.forEach(peak => {
+      if (peak < min) min = peak
+      if (peak > max) max = peak
+    })
+
+    return { min, max }
   }
 }
 
