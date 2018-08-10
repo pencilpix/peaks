@@ -5,6 +5,9 @@ const save = require('save-file')
 const tmp = require('tmp')
 const { resolve } = require('path')
 const urlPattern = /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)/;
+const Canvas = require('./canvas')
+
+const canvas = new Canvas()
 
 
 const DEFAULTS = {
@@ -74,8 +77,6 @@ const getPeaks = (track, options) => {
     tmp.file((err, path, fd, cleanup) => {
       if (err) reject(handleErr(err && err.stack, 'error when parsing: ' + track))
 
-      console.log(typeof track, track)
-
       $http.get(track)
         .then(({ data }) => save(data, path, (saveErr, data) => {
           if (saveErr) {
@@ -107,10 +108,16 @@ const getPeaks = (track, options) => {
  * @param {Object} options waveform-node options
  */
 const getPeaksList = (res, tracks, options) => {
-  const _options = Object.assign({}, DEFAULTS, clearOptions(options))
-
   return Promise.all(tracks.map((track) => getPeaks(track, options)))
-    .then((list) => res.status(200).json(list.length === 1 ? list[0] : list))
+    .then((list) => {
+      canvas.updateOptions(options)
+      list.forEach((item) => {
+        const { track, peaks } = item
+        item.image = canvas.createWaveImage(peaks)
+      })
+
+      return res.status(200).json(list.length === 1 ? list[0] : list)
+    })
     .catch((err) => res.status(err && err.code).json(err))
 }
 
@@ -121,16 +128,26 @@ const getPeaksList = (res, tracks, options) => {
  */
 module.exports = function peaksMiddleware(req, res, next) {
   let { track, numOfSample, waveformType, samplesPerSecond } = req.body
+  let opts = {}
   track = track || req.query.track
   numOfSample = numOfSample || req.query.numOfSample
   waveformType = typeof waveformType !== 'undefined' ? waveformType : req.query.waveformType
   samplesPerSecond = samplesPerSecond || req.query.samplesPerSecond
 
+  opts = {
+    ...req.body,
+    ...req.query,
+    numOfSample,
+    waveformType,
+    samplesPerSecond,
+  }
+
+
 
   if (Array.isArray(track) && isValidList(track)) {
-    getPeaksList(res, track, { numOfSample, waveformType, samplesPerSecond });
+    getPeaksList(res, track, opts);
   } else if (typeof track === 'string' && isValid(track)) {
-    getPeaksList(res, [track], { numOfSample, waveformType, samplesPerSecond })
+    getPeaksList(res, [track], opts)
   } else {
     res.status(400)
       .json({
