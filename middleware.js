@@ -2,7 +2,7 @@ const waveform = require('waveform-node')
 const ffmpeg = require('ffmpeg-static')
 const axios = require('axios')
 const save = require('save-file')
-const tmp = require('tmp')
+const fs = require('fs')
 const { resolve } = require('path')
 const urlPattern = /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)/;
 const Canvas = require('./canvas')
@@ -22,7 +22,6 @@ const $http = axios.create({
   timeout: 20000,
   onDownloadProgress: function (progressEvent) {
     // Do whatever you want with the native progress event
-    console.log('downloading');
     console.log(progressEvent);
   },
 })
@@ -64,7 +63,14 @@ const clearOptions = options => Object.keys(options)
   .filter(key => options[key] !== null && typeof options[key] !== undefined)
   .reduce((cur, next) => Object.assign({}, cur, { [next]: options[next] }), {})
 
-
+const cleanup = (file) => {
+  try {
+    fs.unlink(file)
+    return true
+  } catch (err) {
+    return null
+  }
+}
 
 /**
  * get peaks for audio file
@@ -73,28 +79,27 @@ const clearOptions = options => Object.keys(options)
  * @returns {Promise} Object<track: 'url', peaks: []>/error
  */
 const getPeaks = (track, options) => {
+  const tempFile = resolve(__dirname, './temp/tmp')
+
+
   return new Promise((resolve, reject) => {
-    tmp.file((err, path, fd, cleanup) => {
-      if (err) reject(handleErr(err && err.stack, 'error when parsing: ' + track))
+    $http.get(track).then(({ data }) => save(data, tempFile, (saveErr, data) => {
+      if (saveErr) {
+        cleanup(tempFile)
+        return handleErr(saveErr && saveErr.stack, 'error when saving: ' + track)
+      }
 
-      $http.get(track)
-        .then(({ data }) => save(data, path, (saveErr, data) => {
-          if (saveErr) {
-            reject(handleErr(saveErr && saveErr.stack, 'error when saveing: ' + track))
-          }
-
-          waveform.getWaveForm(path, options, function(error, peaks) {
-            if(error) {
-              reject(handleErr(error && error.stack, 'error while trying to get peaks of: ' + track))
-            }
-
-            cleanup()
-            resolve({ track, peaks })
-          })
-        })).catch(error => {
-          cleanup()
-          reject(handleErr(error && error.stack, 'error while fetching: ' + track))
-        })
+      waveform.getWaveForm(tempFile, options, function(error, peaks) {
+        if(error) {
+          cleanup(tempFile)
+          return reject(handleErr(error && error.stack, 'error while trying to get peaks of: ' + track))
+        }
+        cleanup(tempFile)
+        return resolve({ track, peaks })
+      })
+    })).catch(error => {
+      cleanup(tempFile)
+      return reject(handleErr(error && error.stack, 'error while fetching: ' + track))
     })
   })
 }
@@ -133,6 +138,7 @@ module.exports = function peaksMiddleware(req, res, next) {
   numOfSample = numOfSample || req.query.numOfSample
   waveformType = typeof waveformType !== 'undefined' ? waveformType : req.query.waveformType
   samplesPerSecond = samplesPerSecond || req.query.samplesPerSecond
+
 
   opts = {
     ...req.body,
