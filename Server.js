@@ -1,23 +1,28 @@
 const express = require('express')
 const bodyParser = require('body-parser')
+const mongoose = require('mongoose')
+const router = require('./router')
 
-const middleware = require('./middleware.js')
+
+const mongodb = 'mongodb://localhost/peaksdb'
 const VERSION = require('./package.json').version
-
-
-
 const PORT = process.env.PORT || 2500
 const app = express();
+let db = null
+
+
+mongoose.connect(mongodb, { useNewUrlParser: true })
+db = mongoose.connection
+db.on('error', console.error.bind(console, 'MongoDB connection error:'))
+
+
+
 
 app.use(bodyParser.json())
+
 app.use(bodyParser.urlencoded({ extended: true }))
 
-
-/**
- * get peaks of an audio file
- * it accept body { track: 'http://domain/audio-file.mp3' }
- */
-app.get('/peaks', middleware)
+app.use(router)
 
 app.use('/*', (req, res, next) => {
   res.status(404).end(
@@ -34,6 +39,7 @@ app.use('/*', (req, res, next) => {
     `
   )
 })
+
 
 
 app.listen(PORT, () => {

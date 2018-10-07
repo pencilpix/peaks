@@ -2,10 +2,12 @@ const waveform = require('waveform-node')
 const ffmpeg = require('ffmpeg-static')
 const axios = require('axios')
 const save = require('save-file')
-const tmp = require('tmp')
+const fs = require('fs')
 const { resolve } = require('path')
 const urlPattern = /^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)/;
 const Canvas = require('./canvas')
+const Peaks = require('./model')
+const settings = require('./settings.js')
 
 const canvas = new Canvas()
 
@@ -14,6 +16,14 @@ const DEFAULTS = {
   ffmpegPath: ffmpeg.path,
   numOfSample: 1800,
   waveformType: 1,
+  barGap: 1,
+  barWidth: 1,
+  height: 128,
+  width: 1400,
+  waveColor: '#757575',
+  maxWidth: 4000,
+  pxRatio: 2,
+  force: false,
 }
 
 
@@ -22,7 +32,6 @@ const $http = axios.create({
   timeout: 20000,
   onDownloadProgress: function (progressEvent) {
     // Do whatever you want with the native progress event
-    console.log('downloading');
     console.log(progressEvent);
   },
 })
@@ -64,7 +73,26 @@ const clearOptions = options => Object.keys(options)
   .filter(key => options[key] !== null && typeof options[key] !== undefined)
   .reduce((cur, next) => Object.assign({}, cur, { [next]: options[next] }), {})
 
+const cleanup = (file) => {
+  try {
+    fs.unlink(file)
+    return true
+  } catch (err) {
+    return null
+  }
+}
 
+const isFile = (filePath) => {
+  let found = true
+
+  try {
+    found = fs.lstatSync(filePath).isFile()
+  } catch (err) {
+    found = false
+  }
+
+  return found
+}
 
 /**
  * get peaks for audio file
@@ -73,28 +101,27 @@ const clearOptions = options => Object.keys(options)
  * @returns {Promise} Object<track: 'url', peaks: []>/error
  */
 const getPeaks = (track, options) => {
+  const tempFile = resolve(__dirname, './temp/tmp')
+
+
   return new Promise((resolve, reject) => {
-    tmp.file((err, path, fd, cleanup) => {
-      if (err) reject(handleErr(err && err.stack, 'error when parsing: ' + track))
+    $http.get(track).then(({ data }) => save(data, tempFile, (saveErr, data) => {
+      if (saveErr) {
+        if (isFile(tempFile)) cleanup(tempFile)
+        return handleErr(saveErr && saveErr.stack, 'error when saving: ' + track)
+      }
 
-      $http.get(track)
-        .then(({ data }) => save(data, path, (saveErr, data) => {
-          if (saveErr) {
-            reject(handleErr(saveErr && saveErr.stack, 'error when saveing: ' + track))
-          }
-
-          waveform.getWaveForm(path, options, function(error, peaks) {
-            if(error) {
-              reject(handleErr(error && error.stack, 'error while trying to get peaks of: ' + track))
-            }
-
-            cleanup()
-            resolve({ track, peaks })
-          })
-        })).catch(error => {
-          cleanup()
-          reject(handleErr(error && error.stack, 'error while fetching: ' + track))
-        })
+      waveform.getWaveForm(tempFile, options, function(error, peaks) {
+        if(error) {
+        if (isFile(tempFile)) cleanup(tempFile)
+          return reject(handleErr(error && error.stack, 'error while trying to get peaks of: ' + track))
+        }
+        if (isFile(tempFile)) cleanup(tempFile)
+        return resolve({ track, peaks })
+      })
+    })).catch(error => {
+      if (isFile(tempFile)) cleanup(tempFile)
+      return reject(handleErr(error && error.stack, 'error while fetching: ' + track))
     })
   })
 }
@@ -107,16 +134,36 @@ const getPeaks = (track, options) => {
  * @param {Array<String>} tracks list of tracks urls
  * @param {Object} options waveform-node options
  */
-const getPeaksList = (res, tracks, options) => {
-  return Promise.all(tracks.map((track) => getPeaks(track, options)))
-    .then((list) => {
+const getPeaksList = (res, track, options, existUrl) => {
+  return getPeaks(track, options)
+    .then((data) => {
+      const { track, peaks } = data
+      const newRes = {}
       canvas.updateOptions(options)
-      list.forEach((item) => {
-        const { track, peaks } = item
-        item.image = canvas.createWaveImage(peaks)
-      })
+      data.image = canvas.createWaveImage(peaks)
 
-      return res.status(200).json(list.length === 1 ? list[0] : list)
+      if (!existUrl) {
+        Peaks.addPeaks(data, (err, trackData) => {
+          if (err) throw err
+          newRes._id = trackData.id
+          newRes.__v = trackData.__v
+          newRes.track = trackData.track
+          newRes.image_url = settings.appUrl + '/peaks/wave/' + trackData.id
+          newRes.peaks_url = settings.appUrl + '/peaks/list/' + trackData.id
+          res.json(newRes)
+        })
+      // return res.status(200).json(list.length === 1 ? list[0] : list)
+      } else {
+        Peaks.updatePeaks(existUrl, data, (err, trackData) => {
+          if (err) throw err
+          newRes._id = trackData.id
+          newRes.__v = trackData.__v
+          newRes.track = trackData.track
+          newRes.image_url = settings.appUrl + '/peaks/wave/' + trackData.id
+          newRes.peaks_url = settings.appUrl + '/peaks/list/' + trackData.id
+          res.json(newRes)
+        })
+      }
     })
     .catch((err) => res.status(err && err.code).json(err))
 }
@@ -127,12 +174,15 @@ const getPeaksList = (res, tracks, options) => {
  * middleware to handle get /peaks requests
  */
 module.exports = function peaksMiddleware(req, res, next) {
-  let { track, numOfSample, waveformType, samplesPerSecond } = req.body
+  /*
+  let { track, numOfSample, waveformType, force, samplesPerSecond } = req.body
   let opts = {}
   track = track || req.query.track
+  force = force || req.query.force
   numOfSample = numOfSample || req.query.numOfSample
   waveformType = typeof waveformType !== 'undefined' ? waveformType : req.query.waveformType
   samplesPerSecond = samplesPerSecond || req.query.samplesPerSecond
+
 
   opts = {
     ...req.body,
@@ -140,20 +190,35 @@ module.exports = function peaksMiddleware(req, res, next) {
     numOfSample,
     waveformType,
     samplesPerSecond,
+    force,
   }
+  */
+ const opts = Object.assign({}, DEFAULTS, req.body, req.query)
+ const { track, force } = opts
 
 
+if (typeof track === 'string' && isValid(track)) {
+  Peaks.getPeaksByUrl(track, (err, data) => {
+    if (err) throw err
 
-  if (Array.isArray(track) && isValidList(track)) {
-    getPeaksList(res, track, opts);
-  } else if (typeof track === 'string' && isValid(track)) {
-    getPeaksList(res, [track], opts)
+    if (data) {
+      data.image_url = settings.appUrl + '/peaks/wave/' + data.id
+      data.peaks_url = settings.appUrl + '/peaks/list/' + data.id
+      if (!force) {
+        res.json(data)
+      } else {
+        getPeaksList(res, track, opts, data.track)
+      }
+    } else {
+      getPeaksList(res, track, opts)
+    }
+  })
   } else {
     res.status(400)
       .json({
         status: 'error',
         code: 400,
-        message: 'track attribute must be a valid url or an array of valid urls',
+        message: 'track attribute must be a valid url',
       })
   }
 }
