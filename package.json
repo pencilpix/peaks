@@ -1,6 +1,6 @@
 {
   "name": "@pencilpix/peaks",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "nodejs server that accept posting a url of audio file and respond with it's peaks.",
   "main": "Server.js",
   "scripts": {
