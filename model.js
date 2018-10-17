@@ -35,8 +35,12 @@ module.exports.getPeaks = function (limit, callback) {
   Peaks.find({},{ image: 0, peaks: 0 }, callback, limit)
 }
 
-module.exports.getPeaksByUrl = function (track, callback) {
-  Peaks.findOne({ track }, { image: 0, peaks: 0 }, callback)
+module.exports.getPeaksByUrl = function (track, list, callback) {
+  const projection = { image: 0 }
+  if (!list) {
+    projection.peaks = 0
+  }
+  Peaks.findOne({ track }, projection, callback)
 }
 
 module.exports.addPeaks = function (peaks, callback) {
