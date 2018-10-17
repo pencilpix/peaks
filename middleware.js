@@ -24,6 +24,7 @@ const DEFAULTS = {
   maxWidth: 4000,
   pxRatio: 2,
   force: false,
+  list:false,
 }
 
 
@@ -150,6 +151,10 @@ const getPeaksList = (res, track, options, existUrl) => {
           newRes.track = trackData.track
           newRes.image_url = settings.appUrl + '/peaks/wave/' + trackData.id
           newRes.peaks_url = settings.appUrl + '/peaks/list/' + trackData.id
+
+          if (options.list) {
+            newRes.peaks = trackData.peaks
+          }
           res.json(newRes)
         })
       // return res.status(200).json(list.length === 1 ? list[0] : list)
@@ -161,6 +166,10 @@ const getPeaksList = (res, track, options, existUrl) => {
           newRes.track = trackData.track
           newRes.image_url = settings.appUrl + '/peaks/wave/' + trackData.id
           newRes.peaks_url = settings.appUrl + '/peaks/list/' + trackData.id
+
+          if (options.list) {
+            newRes.peaks = trackData.peaks
+          }
           res.json(newRes)
         })
       }
@@ -198,7 +207,7 @@ module.exports = function peaksMiddleware(req, res, next) {
 
 
 if (typeof track === 'string' && isValid(track)) {
-  Peaks.getPeaksByUrl(track, (err, data) => {
+  Peaks.getPeaksByUrl(track, opts.list, (err, data) => {
     if (err) throw err
 
     if (data) {
